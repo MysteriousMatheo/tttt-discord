@@ -1,4 +1,4 @@
-# TTT-Timer Discord Bot
+#Jam's Waitress Discord Bot
 
 This discord bot was built for virtual team time trials on [Zwift](https://zwift.com/) organized by [WTRL](https://www.wtrl.racing/). It takes the position of the DC and announces who has to lead next and for how long. Of course, the bot is not a replacement for a real coach but helps you to stay organized during an exhausting team time trial. The bot joins the discord call with your team mates and gives voice commands to everyone.
 
@@ -33,11 +33,80 @@ You will be asked to grant multiple permissions:
 | `@Andi`              | Used in the examples to represent [Discord mentions](https://discordia.me/en/mentions). Do not actually send the `@` symbol but use the GitHub client to select a specific user. |
 
 ### Commands
+import discord
+from discord.ext import commands
+import time
+import asyncio
 
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix='/', intents=intents, help_command=None)
+
+# In-memory storage for trials and leaderboard
+trials = {}  # user_id: start_time
+leaderboard = []  # list of tuples (user_id, username, time_elapsed)
+
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user} 🎉')
+
+@bot.command()
+async def help(ctx):
+    await ctx.send(
+        "**Jam’s Waitress Bot Commands:**\n"
+        "/start_trial — Begin a time trial\n"
+        "/finish_trial — End your trial and record your time\n"
+        "/leaderboard — Show the best times\n"
+        "/menu — View today’s specials\n"
+        "/order — Get a random order"
+    )
+
+@bot.command()
+async def start_trial(ctx):
+    user = ctx.author
+    trials[user.id] = time.time()
+    await ctx.send(f"{user.mention} Your trial has started! ⏱️ Good luck delivering those orders!")
+
+@bot.command()
+async def finish_trial(ctx):
+    user = ctx.author
+    if user.id not in trials:
+        return await ctx.send("You haven't started a trial! Use `/start_trial` first.")
+    elapsed = time.time() - trials.pop(user.id)
+    leaderboard.append((user.id, user.name, elapsed))
+    leaderboard.sort(key=lambda x: x[2])
+    personal_best = min(t for uid, _, t in leaderboard if uid == user.id)
+    await ctx.send(f"{user.mention} You finished in **{elapsed:.2f} seconds**! Your personal best is **{personal_best:.2f}s**.")
+
+@bot.command()
+async def leaderboard(ctx):
+    if not leaderboard:
+        return await ctx.send("No trials recorded yet!")
+    top = leaderboard[:5]
+    msg = "🏆 **Top Times:**\n" + "\n".join(
+        f"{i+1}. {name} — {time:.2f}s" for i, (_, name, time) in enumerate(top)
+    )
+    await ctx.send(msg)
+
+@bot.command()
+async def menu(ctx):
+    specials = ["Phantom Burger", "Neon Fries", "Pixel Pizza", "Glow Soda"]
+    await ctx.send("🍽️ **Today's Special:** " + random.choice(specials))
+
+@bot.command()
+async def order(ctx):
+    items = ["Invisibility Soda", "Pixel Pizza", "Rainbow Shake", "Ghost Fries"]
+    order = random.sample(items, 2)
+    await ctx.send(f"📋 Customer order: **{order[0]}** and **{order[1]}**!")
+
+if __name__ == "__main__":
+    import os
+    bot.run(os.getenv("DISCORD_TOKEN"))
 #### `/timer athlete <athlete> <time>`
 
 Set the lead time of an athlete. The user must be added to the athletes list before using the `/timer athletes` command.
-You can also mention a user instead of typing their name.
+
 
 Example:
 
@@ -78,7 +147,7 @@ _The team now includes Andi and Victor. Andi leads for 45 seconds, Victor for 30
 If `<time>` is omitted, returns the configured start delay
 
 Otherwise, sets the start delay in seconds.
-
+discord.py
 Example:
 
 ```bash
